@@ -1,0 +1,22 @@
+# Android/Gradle
+.gradle/
+build/
+app/build/
+*.apk
+*.aab
+*.ap_
+
+# Local config (contains SDK path - machine specific)
+local.properties
+
+# Android Studio
+.idea/
+*.iml
+.DS_Store
+
+# Keystore files (never commit these)
+*.jks
+*.keystore
+
+# Google services (may contain API keys)
+google-services.json
