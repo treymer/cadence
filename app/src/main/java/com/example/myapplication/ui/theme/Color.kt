@@ -21,3 +21,7 @@ val EmberContainer   = Color(0xFF3D1A00)   // secondary container
 val EmberLight       = Color(0xFFFFB77C)   // on secondary container
 
 val CrimsonError     = Color(0xFF8B1A1A)   // error
+
+val TuneGreen        = Color(0xFF4CAF50)   // tuner: in tune indicator
+
+val MagicPurple      = Color(0xFF7C3AED)   // magical purple glow accent

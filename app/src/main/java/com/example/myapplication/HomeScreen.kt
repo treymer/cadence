@@ -38,10 +38,10 @@ private data class Feature(
 )
 
 private val FEATURES = listOf(
-    Feature(AppMode.TUNER,      "🎸", "Tuner",      "Detect notes in real time"),
-    Feature(AppMode.KEY_FINDER, "🔑", "Key Finder", "Identify key from notes"),
+    Feature(AppMode.TUNER,      "🎸", "Tuner",      "Chromatic tuner"),
+    Feature(AppMode.KEY_FINDER, "🔑", "Key Finder", "Detect your key"),
     Feature(AppMode.METRONOME,  "🥁", "Metronome",  "Keep perfect time"),
-    Feature(AppMode.SUGGESTER,  "🎵", "Suggest",    "Chords, scales & arpeggios")
+    Feature(AppMode.SUGGESTER,  "🎵", "Suggest",    "Chords & scales")
 )
 
 @Composable
@@ -115,7 +115,7 @@ fun HomeScreen(onNavigate: (AppMode) -> Unit, modifier: Modifier = Modifier) {
                                 feature.description,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
+                                maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }

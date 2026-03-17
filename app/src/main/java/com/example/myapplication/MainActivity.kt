@@ -11,10 +11,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,15 +27,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Piano
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +54,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -55,6 +66,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myapplication.ui.theme.CrimsonError
+import com.example.myapplication.ui.theme.EmberOrange
+import com.example.myapplication.ui.theme.MagicPurple
+import com.example.myapplication.ui.theme.TuneGreen
 import kotlin.math.abs
 import kotlin.math.cos
 import androidx.core.content.ContextCompat
@@ -344,15 +359,27 @@ fun MainScreen(
         appMode = mode
     }
 
-    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-        Column(
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        bottomBar = { CadenceNavBar(selectedMode = appMode, onModeSelected = ::switchMode) }
+    ) { innerPadding ->
+        Box(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
+                .drawBehind {
+                    drawRect(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                MagicPurple.copy(alpha = 0.18f),
+                                Color.Transparent
+                            ),
+                            center = Offset(size.width / 2f, 0f),
+                            radius = size.width * 0.9f
+                        )
+                    )
+                }
         ) {
-            if (appMode != AppMode.HOME) {
-                ModeSelector(selectedMode = appMode, onModeSelected = ::switchMode)
-            }
             when (appMode) {
                 AppMode.HOME -> HomeScreen(onNavigate = ::switchMode)
                 AppMode.TUNER -> TunerScreen(
@@ -384,50 +411,34 @@ fun MainScreen(
 }
 
 @Composable
-fun ModeSelector(selectedMode: AppMode, onModeSelected: (AppMode) -> Unit) {
-    val tabs = listOf(
-        AppMode.HOME      to "⌂  Home",
-        AppMode.TUNER     to "Tuner",
-        AppMode.KEY_FINDER to "Key Finder",
-        AppMode.METRONOME to "Metronome",
-        AppMode.SUGGESTER to "Suggest"
+fun CadenceNavBar(selectedMode: AppMode, onModeSelected: (AppMode) -> Unit) {
+    data class NavItem(val mode: AppMode, val icon: androidx.compose.ui.graphics.vector.ImageVector, val label: String)
+    val items = listOf(
+        NavItem(AppMode.HOME,       Icons.Default.Home,         "Home"),
+        NavItem(AppMode.TUNER,      Icons.Default.Tune,         "Tuner"),
+        NavItem(AppMode.KEY_FINDER, Icons.Default.Piano,        "Keys"),
+        NavItem(AppMode.METRONOME,  Icons.Default.Timer,        "Tempo"),
+        NavItem(AppMode.SUGGESTER,  Icons.Default.LibraryMusic, "Suggest"),
     )
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor   = MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
-        Row(
-            modifier = Modifier
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            tabs.forEach { (mode, label) ->
-                val isSelected = selectedMode == mode
-                TextButton(
-                    onClick = { onModeSelected(mode) },
-                    modifier = Modifier.height(56.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp),
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = if (isSelected)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                    )
-                }
-            }
+        items.forEach { item ->
+            NavigationBarItem(
+                selected = selectedMode == item.mode,
+                onClick  = { onModeSelected(item.mode) },
+                icon     = { Icon(item.icon, contentDescription = item.label) },
+                label    = { Text(item.label) },
+                colors   = NavigationBarItemDefaults.colors(
+                    selectedIconColor   = MaterialTheme.colorScheme.onPrimary,
+                    selectedTextColor   = MaterialTheme.colorScheme.primary,
+                    indicatorColor      = MaterialTheme.colorScheme.primary,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            )
         }
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.outline,
-            thickness = 1.dp
-        )
     }
 }
 
@@ -442,18 +453,27 @@ fun MetronomeScreen(
     modifier: Modifier = Modifier
 ) {
     val beatColor = if (isBeat) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val beatScale by animateFloatAsState(
+        targetValue = if (isBeat) 1.28f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness    = Spring.StiffnessMedium
+        ),
+        label = "beatScale"
+    )
 
     Column(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Metronome", style = MaterialTheme.typography.headlineMedium)
+        Text("Metronome", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(32.dp))
 
         Box(
             modifier = Modifier
                 .size(80.dp)
+                .scale(beatScale)
                 .clip(CircleShape)
                 .background(beatColor)
         )
@@ -500,9 +520,9 @@ fun TunerScreen(
     val inTune = isRecording && note != "--" && abs(cents) <= 10f
     val needleColor = when {
         !isRecording || note == "--" -> MaterialTheme.colorScheme.onSurfaceVariant
-        abs(cents) <= 10f -> Color(0xFF4CAF50)
-        abs(cents) <= 25f -> Color(0xFFFF9800)
-        else -> Color(0xFFF44336)
+        abs(cents) <= 10f -> TuneGreen
+        abs(cents) <= 25f -> EmberOrange
+        else -> CrimsonError
     }
     val statusText = when {
         !isRecording -> "Tap Start Tuning"
@@ -577,7 +597,7 @@ private fun TunerGauge(
     modifier: Modifier = Modifier
 ) {
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
-    val greenColor = Color(0xFF4CAF50)
+    val greenColor = TuneGreen
     val onSurface = MaterialTheme.colorScheme.onSurfaceVariant
 
     Canvas(
@@ -697,14 +717,14 @@ fun KeyFinderScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("Key Finder", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(16.dp))
         Text(
             text = instructionText,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(Modifier.height(36.dp))
+        Spacer(Modifier.height(32.dp))
 
         // Note pills
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -732,7 +752,7 @@ fun KeyFinderScreen(
             }
         }
 
-        Spacer(Modifier.height(36.dp))
+        Spacer(Modifier.height(32.dp))
 
         val buttonText = when {
             isRecording -> "Listening..."
