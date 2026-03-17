@@ -211,10 +211,18 @@ private val GENRE_DATA = mapOf(
 fun SuggesterScreen(modifier: Modifier = Modifier) {
     var selectedGenre by remember { mutableStateOf("Rock") }
     var selectedKey by remember { mutableStateOf("C") }
+    var isMajor by remember { mutableStateOf(true) }
     var selectedTab by remember { mutableStateOf(0) }
 
     val rootIndex = NOTE_NAMES.indexOf(selectedKey)
     val data = GENRE_DATA[selectedGenre]!!
+
+    // When Major: relative minor is 9 semitones up (C major → A minor)
+    // When Minor: relative major is 3 semitones up (A minor → C major)
+    val relativeKeyLabel = if (isMajor)
+        "Relative minor: ${NOTE_NAMES[(rootIndex + 9) % 12]} minor"
+    else
+        "Relative major: ${NOTE_NAMES[(rootIndex + 3) % 12]} major"
 
     Column(modifier = modifier.fillMaxSize()) {
 
@@ -234,9 +242,24 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
             }
         }
 
-        // Key selector
+        // Key + Major/Minor selector
         Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)) {
-            Text("Key", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Key", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FilterChip(
+                    selected = isMajor,
+                    onClick = { isMajor = true },
+                    label = { Text("Major") }
+                )
+                FilterChip(
+                    selected = !isMajor,
+                    onClick = { isMajor = false },
+                    label = { Text("Minor") }
+                )
+            }
             Spacer(Modifier.height(4.dp))
             Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
                 NOTE_NAMES.forEach { note ->
@@ -249,18 +272,11 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
                 }
             }
             Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(
-                    "Relative minor: ${relativeMinor(rootIndex)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    "Relative major: ${relativeMajor(rootIndex)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+            Text(
+                relativeKeyLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
 
         // Tabs
