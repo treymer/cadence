@@ -281,7 +281,7 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
 
         // Tabs
         TabRow(selectedTabIndex = selectedTab) {
-            listOf("Progressions", "Scales", "Arpeggios").forEachIndexed { index, title ->
+            listOf("Progression", "Scales", "Arpeggios").forEachIndexed { index, title ->
                 Tab(
                     selected = selectedTab == index,
                     onClick = { selectedTab = index },
