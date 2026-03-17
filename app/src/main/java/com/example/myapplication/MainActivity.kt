@@ -11,6 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,7 +68,8 @@ import kotlin.math.sin
 enum class AppMode {
     TUNER,
     KEY_FINDER,
-    METRONOME
+    METRONOME,
+    SUGGESTER
 }
 
 class MainActivity : ComponentActivity() {
@@ -155,6 +158,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         AppMode.METRONOME -> {}
+                        AppMode.SUGGESTER -> {}
                     }
                 }
             }
@@ -348,6 +352,7 @@ fun MainScreen(
                     onStart = onStartMetronome,
                     onStop = onStopMetronome
                 )
+                AppMode.SUGGESTER -> SuggesterScreen()
             }
         }
     }
@@ -355,7 +360,12 @@ fun MainScreen(
 
 @Composable
 fun ModeSelector(selectedMode: AppMode, onModeSelected: (AppMode) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.Center
+    ) {
         TextButton(onClick = { onModeSelected(AppMode.TUNER) }, enabled = selectedMode != AppMode.TUNER) {
             Text("Tuner")
         }
@@ -364,6 +374,9 @@ fun ModeSelector(selectedMode: AppMode, onModeSelected: (AppMode) -> Unit) {
         }
         TextButton(onClick = { onModeSelected(AppMode.METRONOME) }, enabled = selectedMode != AppMode.METRONOME) {
             Text("Metronome")
+        }
+        TextButton(onClick = { onModeSelected(AppMode.SUGGESTER) }, enabled = selectedMode != AppMode.SUGGESTER) {
+            Text("Suggest")
         }
     }
 }
@@ -456,7 +469,7 @@ fun TunerScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Chordify",
+            text = "Cadence",
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
             color = Color.Green
