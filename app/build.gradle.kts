@@ -27,12 +27,20 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile     = file(System.getenv("KEYSTORE_PATH") ?: keystoreProperties["storeFile"] as String)
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: keystoreProperties["storePassword"] as String
-            keyAlias      = System.getenv("KEY_ALIAS") ?: keystoreProperties["keyAlias"] as String
-            keyPassword   = System.getenv("KEY_PASSWORD") ?: keystoreProperties["keyPassword"] as String
+    val storeFilePath  = System.getenv("KEYSTORE_PATH")      ?: keystoreProperties.getProperty("storeFile")
+    val storePass      = System.getenv("KEYSTORE_PASSWORD")  ?: keystoreProperties.getProperty("storePassword")
+    val keyAliasVal    = System.getenv("KEY_ALIAS")          ?: keystoreProperties.getProperty("keyAlias")
+    val keyPassVal     = System.getenv("KEY_PASSWORD")       ?: keystoreProperties.getProperty("keyPassword")
+    val hasSigningInfo = storeFilePath != null && storePass != null && keyAliasVal != null && keyPassVal != null
+
+    if (hasSigningInfo) {
+        signingConfigs {
+            create("release") {
+                storeFile     = file(storeFilePath!!)
+                storePassword = storePass
+                keyAlias      = keyAliasVal
+                keyPassword   = keyPassVal
+            }
         }
     }
 
@@ -40,7 +48,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            if (hasSigningInfo) signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
