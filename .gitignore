@@ -14,9 +14,10 @@ local.properties
 *.iml
 .DS_Store
 
-# Keystore files (never commit these)
+# Keystore files and signing config (never commit these)
 *.jks
 *.keystore
+keystore.properties
 
 # Google services (may contain API keys)
 google-services.json
