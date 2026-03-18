@@ -70,7 +70,8 @@ private fun scaleNotes(rootIndex: Int, isMajor: Boolean): List<String> =
 
 private const val GUITAR_CHORDS_BASE = "https://www.guitar-chords.org.uk"
 
-// Standard slug: f-sharp, b-flat (used by chords, scales, arpeggios)
+// Chord slug: uses sharp notation (D# = d-sharp, A# = a-sharp)
+// Note: chord pages for D#/A# may not exist; site has no Eb/Bb chord pages either
 private fun noteToSlug(note: String): String = when (note) {
     "C"  -> "c";   "C#" -> "c-sharp"
     "D"  -> "d";   "D#" -> "d-sharp"
@@ -81,14 +82,21 @@ private fun noteToSlug(note: String): String = when (note) {
     else -> note.lowercase()
 }
 
-// Mode slug: fsharp, bflat — no hyphens (site inconsistency)
+// Scale/arpeggio slug: D# and A# use flat enharmonic (e-flat, b-flat)
+private fun noteToScaleSlug(note: String): String = when (note) {
+    "D#" -> "e-flat"
+    "A#" -> "b-flat"
+    else -> noteToSlug(note)
+}
+
+// Mode slug: no hyphens for sharps; D# and A# use flat enharmonic (eflat, bflat)
 private fun noteToModeSlug(note: String): String = when (note) {
     "C"  -> "c";   "C#" -> "csharp"
-    "D"  -> "d";   "D#" -> "dsharp"
+    "D"  -> "d";   "D#" -> "eflat"   // D# = Eb
     "E"  -> "e";   "F"  -> "f"
     "F#" -> "fsharp"; "G" -> "g"
     "G#" -> "gsharp"; "A" -> "a"
-    "A#" -> "asharp"; "B" -> "b"
+    "A#" -> "bflat";  "B" -> "b"     // A# = Bb
     else -> note.lowercase()
 }
 
@@ -163,13 +171,9 @@ private fun dynamicRoman(semitones: Int, quality: ChordQuality, isMajor: Boolean
 private fun itemKey(item: String) =
     item.substringBefore("(").substringBefore("  ").trim()
 
-// Notes whose scale/mode pages don't exist on guitar-chords.org.uk
-private val NOTES_WITHOUT_SCALE_PAGES = setOf("D#", "A#")
-
 private fun scalePageUrl(rootNote: String, item: String): String {
-    if (rootNote in NOTES_WITHOUT_SCALE_PAGES) return ""
     val key = itemKey(item)
-    val n = noteToSlug(rootNote)
+    val n = noteToScaleSlug(rootNote)
     val m = noteToModeSlug(rootNote)
     return when {
         key.startsWith("Pentatonic Minor") -> "$GUITAR_CHORDS_BASE/guitarscales/$n-minorpentatonic.html"
@@ -188,7 +192,7 @@ private fun scalePageUrl(rootNote: String, item: String): String {
 
 private fun arpeggioPageUrl(rootNote: String, item: String): String {
     val key = itemKey(item)
-    val n = noteToSlug(rootNote)
+    val n = noteToScaleSlug(rootNote)
     val slug = when {
         key.startsWith("Major Triad")     -> "major"
         key.startsWith("Minor Triad")     -> "minor"
