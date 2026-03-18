@@ -163,7 +163,11 @@ private fun dynamicRoman(semitones: Int, quality: ChordQuality, isMajor: Boolean
 private fun itemKey(item: String) =
     item.substringBefore("(").substringBefore("  ").trim()
 
+// Notes whose scale/mode pages don't exist on guitar-chords.org.uk
+private val NOTES_WITHOUT_SCALE_PAGES = setOf("D#", "A#")
+
 private fun scalePageUrl(rootNote: String, item: String): String {
+    if (rootNote in NOTES_WITHOUT_SCALE_PAGES) return ""
     val key = itemKey(item)
     val n = noteToSlug(rootNote)
     val m = noteToModeSlug(rootNote)

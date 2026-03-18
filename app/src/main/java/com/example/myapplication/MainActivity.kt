@@ -225,9 +225,13 @@ class MainActivity : ComponentActivity() {
 
     private fun startMetronome() {
         isMetronomeRunning = true
-        metronomeJob = metronomeScope.launch {
+        // Run on IO — audioTrack.write() is a blocking call
+        metronomeJob = metronomeScope.launch(Dispatchers.IO) {
             val sampleRate = 44100
-            val clickBuffer = generateClick(sampleRate)
+            val clickSamples = generateClick(sampleRate)
+            val minBufSize = AudioTrack.getMinBufferSize(
+                sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT
+            )
             val audioTrack = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder()
@@ -242,30 +246,31 @@ class MainActivity : ComponentActivity() {
                         .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                         .build()
                 )
-                .setBufferSizeInBytes(clickBuffer.size * 2)
-                .setTransferMode(AudioTrack.MODE_STATIC)
+                // Small buffer so write() blocks at the hardware rate, giving accurate timing
+                .setBufferSizeInBytes(minBufSize * 2)
+                .setTransferMode(AudioTrack.MODE_STREAM)
                 .build()
-            audioTrack.write(clickBuffer, 0, clickBuffer.size)
+
+            audioTrack.play()
 
             try {
                 while (isActive) {
-                    val intervalMs = 60000L / metronomeBpm
-                    val tickStart = System.currentTimeMillis()
+                    val samplesPerBeat = (sampleRate * 60.0 / metronomeBpm).toInt()
+                    val beatBuffer = ShortArray(samplesPerBeat)
+                    val copyLen = minOf(clickSamples.size, samplesPerBeat)
+                    clickSamples.copyInto(beatBuffer, 0, 0, copyLen)
 
-                    audioTrack.stop()
-                    audioTrack.reloadStaticData()
-                    audioTrack.play()
                     isBeat = true
-                    delay(80)
-                    isBeat = false
+                    // Reset the visual flash independently — don't block the audio write
+                    metronomeScope.launch { delay(80); isBeat = false }
 
-                    val elapsed = System.currentTimeMillis() - tickStart
-                    val remaining = intervalMs - elapsed
-                    if (remaining > 0) delay(remaining)
+                    // Blocks for ~one beat period while the hardware drains the buffer
+                    audioTrack.write(beatBuffer, 0, beatBuffer.size)
                 }
             } finally {
                 audioTrack.stop()
                 audioTrack.release()
+                isBeat = false
             }
         }
     }
