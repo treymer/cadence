@@ -115,8 +115,7 @@ private fun modeUrl(note: String, mode: String): String {
             else -> null
         }
         "lydian" -> when (note) {
-            // csharp-lydian does not exist; all others verified present
-            "C" -> "c"; "D" -> "d"; "D#" -> "eflat"
+            "C" -> "c"; "C#" -> "dflat"; "D" -> "d"; "D#" -> "eflat"
             "E" -> "e"; "F" -> "f"; "F#" -> "fsharp"; "G" -> "g"
             "G#" -> "aflat"; "A" -> "a"; "A#" -> "bflat"; "B" -> "b"
             else -> null

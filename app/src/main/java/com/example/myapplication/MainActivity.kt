@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Piano
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tune
@@ -96,7 +97,8 @@ enum class AppMode {
     TUNER,
     KEY_FINDER,
     METRONOME,
-    SUGGESTER
+    SUGGESTER,
+    FRETBOARD
 }
 
 class MainActivity : ComponentActivity() {
@@ -189,9 +191,10 @@ class MainActivity : ComponentActivity() {
                                 stopRecording()
                             }
                         }
-                        AppMode.METRONOME -> {}
-                        AppMode.SUGGESTER -> {}
-                        AppMode.HOME -> {}
+                        AppMode.METRONOME  -> {}
+                        AppMode.SUGGESTER  -> {}
+                        AppMode.FRETBOARD  -> {}
+                        AppMode.HOME       -> {}
                     }
                 }
             }
@@ -409,7 +412,8 @@ fun MainScreen(
                     onStart = onStartMetronome,
                     onStop = onStopMetronome
                 )
-                AppMode.SUGGESTER -> SuggesterScreen()
+                AppMode.SUGGESTER  -> SuggesterScreen()
+                AppMode.FRETBOARD -> FretboardScreen()
             }
         }
     }
@@ -423,7 +427,8 @@ fun CadenceNavBar(selectedMode: AppMode, onModeSelected: (AppMode) -> Unit) {
         NavItem(AppMode.TUNER,      Icons.Default.Tune,         "Tuner"),
         NavItem(AppMode.KEY_FINDER, Icons.Default.Piano,        "Keys"),
         NavItem(AppMode.METRONOME,  Icons.Default.Timer,        "Tempo"),
-        NavItem(AppMode.SUGGESTER,  Icons.Default.LibraryMusic, "Suggest"),
+        NavItem(AppMode.SUGGESTER,  Icons.Default.LibraryMusic, "Ideas"),
+        NavItem(AppMode.FRETBOARD,  Icons.Default.MusicNote,    "Notes"),
     )
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surfaceVariant,
