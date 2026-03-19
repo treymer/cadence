@@ -45,10 +45,29 @@ private enum class ChordQuality(val suffix: String) {
 
 private data class ChordDegree(val semitones: Int, val quality: ChordQuality, val roman: String)
 private data class Progression(val name: String, val degrees: List<ChordDegree>)
+
+private enum class Strum(val symbol: String) {
+    DOWN("↓"), UP("↑"), MUTED("✕"), REST("")
+}
+private data class RhythmPattern(val name: String, val timeSig: String, val beats: List<Strum>)
+
+// Shorthand for building beat lists
+private fun beats(vararg s: Strum) = s.toList()
+private val D = Strum.DOWN; private val U = Strum.UP
+private val X = Strum.MUTED; private val R = Strum.REST
+
+// Subdivision labels
+private val LABELS_4_4 = listOf("1","e","&","a","2","e","&","a","3","e","&","a","4","e","&","a")
+private val LABELS_6_8 = listOf("1","&","a","2","&","a")
+// Positions that are strong beats (shown bolder)
+private val ACCENTS_4_4 = setOf(0, 4, 8, 12)
+private val ACCENTS_6_8 = setOf(0, 3)
+
 private data class GenreData(
     val progressions: List<Progression>,
     val scales: List<String>,
-    val arpeggios: List<String>
+    val arpeggios: List<String>,
+    val rhythms: List<RhythmPattern>
 )
 
 private fun chordName(rootIndex: Int, degree: ChordDegree) =
@@ -270,7 +289,15 @@ private val GENRE_DATA = mapOf(
             ))
         ),
         scales = listOf("Pentatonic Minor", "Blues Scale", "Natural Minor (Aeolian)", "Major (Ionian)"),
-        arpeggios = listOf("Major Triad  (1 – 3 – 5)", "Minor Triad  (1 – b3 – 5)", "Dominant 7th  (1 – 3 – 5 – b7)")
+        arpeggios = listOf("Major Triad  (1 – 3 – 5)", "Minor Triad  (1 – b3 – 5)", "Dominant 7th  (1 – 3 – 5 – b7)"),
+        rhythms = listOf(
+            RhythmPattern("Classic Rock", "4/4",
+                beats(D,R,R,R, D,R,U,R, R,R,U,R, D,R,U,R)),
+            RhythmPattern("Power Strokes", "4/4",
+                beats(D,R,R,R, D,R,R,R, D,R,R,R, D,R,R,R)),
+            RhythmPattern("Straight 8ths", "4/4",
+                beats(D,R,U,R, D,R,U,R, D,R,U,R, D,R,U,R))
+        )
     ),
     "Blues" to GenreData(
         progressions = listOf(
@@ -299,7 +326,15 @@ private val GENRE_DATA = mapOf(
             ))
         ),
         scales = listOf("Blues Scale  (1 – b3 – 4 – b5 – 5 – b7)", "Pentatonic Minor", "Mixolydian", "Dorian"),
-        arpeggios = listOf("Dominant 7th  (1 – 3 – 5 – b7)", "Minor 7th  (1 – b3 – 5 – b7)", "Major 6th  (1 – 3 – 5 – 6)")
+        arpeggios = listOf("Dominant 7th  (1 – 3 – 5 – b7)", "Minor 7th  (1 – b3 – 5 – b7)", "Major 6th  (1 – 3 – 5 – 6)"),
+        rhythms = listOf(
+            RhythmPattern("Shuffle", "4/4",
+                beats(D,R,U,R, D,R,U,R, D,R,U,R, D,R,U,R)),
+            RhythmPattern("12-Bar Accent", "4/4",
+                beats(D,R,R,R, R,R,U,R, D,R,R,R, R,R,U,R)),
+            RhythmPattern("Slow Blues Ballad", "6/8",
+                beats(D,R,U, D,U,R))
+        )
     ),
     "Jazz" to GenreData(
         progressions = listOf(
@@ -332,6 +367,14 @@ private val GENRE_DATA = mapOf(
             "Minor 7th  (1 – b3 – 5 – b7)",
             "Dominant 7th  (1 – 3 – 5 – b7)",
             "Half-diminished  (1 – b3 – b5 – b7)"
+        ),
+        rhythms = listOf(
+            RhythmPattern("Freddie Green", "4/4",
+                beats(D,R,R,R, D,R,R,R, D,R,R,R, D,R,R,R)),
+            RhythmPattern("Bossa Nova", "4/4",
+                beats(D,R,R,U, R,U,D,R, D,R,R,U, R,U,D,R)),
+            RhythmPattern("Jazz Waltz", "6/8",
+                beats(D,R,U, R,U,R))
         )
     ),
     "Funk" to GenreData(
@@ -354,7 +397,15 @@ private val GENRE_DATA = mapOf(
             ))
         ),
         scales = listOf("Pentatonic Minor", "Dorian", "Mixolydian"),
-        arpeggios = listOf("Dominant 7th  (1 – 3 – 5 – b7)", "Minor 7th  (1 – b3 – 5 – b7)", "9th Chord  (1 – 3 – 5 – b7 – 9)")
+        arpeggios = listOf("Dominant 7th  (1 – 3 – 5 – b7)", "Minor 7th  (1 – b3 – 5 – b7)", "9th Chord  (1 – 3 – 5 – b7 – 9)"),
+        rhythms = listOf(
+            RhythmPattern("16th Groove", "4/4",
+                beats(D,R,U,U, D,R,U,R, D,U,R,U, D,R,U,R)),
+            RhythmPattern("Ghost Notes", "4/4",
+                beats(D,R,X,U, D,R,X,R, D,U,X,U, D,R,X,U)),
+            RhythmPattern("Two-Chord Vamp", "4/4",
+                beats(D,R,R,U, R,U,R,U, D,R,R,U, R,U,R,U))
+        )
     ),
     "Metal" to GenreData(
         progressions = listOf(
@@ -386,6 +437,14 @@ private val GENRE_DATA = mapOf(
             "Diminished  (1 – b3 – b5)",
             "Power Chord  (1 – 5)",
             "Minor 7th  (1 – b3 – 5 – b7)"
+        ),
+        rhythms = listOf(
+            RhythmPattern("Gallop", "4/4",
+                beats(D,R,D,U, D,R,D,U, D,R,D,U, D,R,D,U)),
+            RhythmPattern("16th Chug", "4/4",
+                beats(D,D,D,D, D,D,D,D, D,D,D,D, D,D,D,D)),
+            RhythmPattern("Syncopated Riff", "4/4",
+                beats(D,R,R,U, D,D,R,U, D,R,R,U, D,D,R,R))
         )
     )
 )
@@ -474,7 +533,7 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
 
         // Tabs
         TabRow(selectedTabIndex = selectedTab) {
-            listOf("Progression", "Scales", "Arpeggios").forEachIndexed { index, title ->
+            listOf("Progression", "Scales", "Arpeggios", "Rhythm").forEachIndexed { index, title ->
                 Tab(
                     selected = selectedTab == index,
                     onClick = { selectedTab = index },
@@ -487,6 +546,7 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
             0 -> ProgressionsTab(data.progressions, rootIndex, isMajor)
             1 -> ItemListTab(data.scales, selectedKey, ::scalePageUrl)
             2 -> ItemListTab(data.arpeggios, selectedKey, ::arpeggioPageUrl)
+            3 -> RhythmTab(data.rhythms)
         }
     }
 }
@@ -594,6 +654,97 @@ private fun ItemListTab(
                         }) {
                             Text("Diagram", fontSize = 12.sp)
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RhythmTab(patterns: List<RhythmPattern>) {
+    Column(
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+            .fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        patterns.forEach { pattern ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // Header row: name + time signature badge
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            pattern.name,
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(
+                            pattern.timeSig,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    BeatGrid(pattern)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BeatGrid(pattern: RhythmPattern) {
+    val labels  = if (pattern.timeSig == "6/8") LABELS_6_8 else LABELS_4_4
+    val accents = if (pattern.timeSig == "6/8") ACCENTS_6_8 else ACCENTS_4_4
+    val primary = MaterialTheme.colorScheme.primary
+    val secondary = MaterialTheme.colorScheme.secondary
+    val muted   = MaterialTheme.colorScheme.onSurfaceVariant
+
+    // For 4/4 split into two rows of 8; 6/8 is a single row of 6
+    val rows = if (pattern.timeSig == "6/8") listOf(pattern.beats.indices.toList())
+               else listOf((0..7).toList(), (8..15).toList())
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        rows.forEach { indices ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                indices.forEach { i ->
+                    val strum   = pattern.beats.getOrElse(i) { Strum.REST }
+                    val isAccent = i in accents
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        // Subdivision label
+                        Text(
+                            labels[i],
+                            fontSize = if (isAccent) 11.sp else 10.sp,
+                            fontWeight = if (isAccent) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isAccent) MaterialTheme.colorScheme.onSurface
+                                    else muted
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        // Strum arrow
+                        Text(
+                            strum.symbol,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = when (strum) {
+                                Strum.DOWN  -> primary
+                                Strum.UP    -> secondary
+                                Strum.MUTED -> muted
+                                Strum.REST  -> muted.copy(alpha = 0f)
+                            }
+                        )
                     }
                 }
             }
