@@ -17,15 +17,21 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -37,7 +43,7 @@ import androidx.compose.ui.unit.sp
 
 private val NOTE_NAMES         = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 private val NOTE_DISPLAY_NAMES = listOf("C", "C#/Db", "D", "D#/Eb", "E", "F", "F#/Gb", "G", "G#/Ab", "A", "A#/Bb", "B")
-private val GENRES = listOf("Rock", "Blues", "Jazz", "Funk", "Metal")
+private val GENRES = listOf("Rock", "Blues", "Jazz", "Funk", "Metal", "Country", "Reggae", "Pop", "R&B")
 
 private enum class ChordQuality(val suffix: String) {
     MAJOR(""), MINOR("m"), DOM7("7"), MAJ7("maj7"), MIN7("m7"), DIM("°"), HALF_DIM("ø7")
@@ -446,6 +452,145 @@ private val GENRE_DATA = mapOf(
             RhythmPattern("Syncopated Riff", "4/4",
                 beats(D,R,R,U, D,D,R,U, D,R,R,U, D,D,R,R))
         )
+    ),
+    "Country" to GenreData(
+        progressions = listOf(
+            Progression("Classic Country  (I – IV – V)", listOf(
+                ChordDegree(0, ChordQuality.MAJOR, "I"),
+                ChordDegree(5, ChordQuality.MAJOR, "IV"),
+                ChordDegree(7, ChordQuality.MAJOR, "V")
+            )),
+            Progression("Modern Country  (I – V – vi – IV)", listOf(
+                ChordDegree(0, ChordQuality.MAJOR, "I"),
+                ChordDegree(7, ChordQuality.MAJOR, "V"),
+                ChordDegree(9, ChordQuality.MINOR, "vi"),
+                ChordDegree(5, ChordQuality.MAJOR, "IV")
+            )),
+            Progression("Western Swing  (I – VI7 – II7 – V7)", listOf(
+                ChordDegree(0, ChordQuality.MAJ7,  "Imaj7"),
+                ChordDegree(9, ChordQuality.DOM7,  "VI7"),
+                ChordDegree(2, ChordQuality.DOM7,  "II7"),
+                ChordDegree(7, ChordQuality.DOM7,  "V7")
+            ))
+        ),
+        scales    = listOf("Pentatonic Major", "Major (Ionian)", "Mixolydian", "Harmonic Minor"),
+        arpeggios = listOf(
+            "Major Triad  (1 – 3 – 5)",
+            "Dominant 7th  (1 – 3 – 5 – b7)",
+            "Major 7th  (1 – 3 – 5 – 7)"
+        ),
+        rhythms = listOf(
+            RhythmPattern("Boom-Chick", "4/4",
+                beats(D,R,R,R, U,R,R,R, D,R,R,R, U,R,R,R)),
+            RhythmPattern("Country Shuffle", "4/4",
+                beats(D,R,U,R, D,R,U,R, D,R,U,R, D,R,U,R)),
+            RhythmPattern("Train Beat", "4/4",
+                beats(D,R,R,U, D,R,U,R, D,R,R,U, D,R,U,R))
+        )
+    ),
+    "Reggae" to GenreData(
+        progressions = listOf(
+            Progression("Minor Riddim  (i – VII – VI – VII)", listOf(
+                ChordDegree(0,  ChordQuality.MINOR, "i"),
+                ChordDegree(10, ChordQuality.MAJOR, "VII"),
+                ChordDegree(8,  ChordQuality.MAJOR, "VI"),
+                ChordDegree(10, ChordQuality.MAJOR, "VII")
+            )),
+            Progression("Roots  (I – IV)", listOf(
+                ChordDegree(0, ChordQuality.MAJOR, "I"),
+                ChordDegree(5, ChordQuality.MAJOR, "IV")
+            )),
+            Progression("Lover's Rock  (I – V – vi – IV)", listOf(
+                ChordDegree(0, ChordQuality.MAJOR, "I"),
+                ChordDegree(7, ChordQuality.MAJOR, "V"),
+                ChordDegree(9, ChordQuality.MINOR, "vi"),
+                ChordDegree(5, ChordQuality.MAJOR, "IV")
+            ))
+        ),
+        scales    = listOf("Natural Minor (Aeolian)", "Dorian", "Pentatonic Minor", "Major (Ionian)"),
+        arpeggios = listOf(
+            "Minor Triad  (1 – b3 – 5)",
+            "Major Triad  (1 – 3 – 5)",
+            "Minor 7th  (1 – b3 – 5 – b7)"
+        ),
+        rhythms = listOf(
+            RhythmPattern("One Drop Skank", "4/4",
+                beats(R,R,U,R, R,R,U,R, R,R,U,R, R,R,U,R)),
+            RhythmPattern("Rockers", "4/4",
+                beats(R,R,U,R, D,R,U,R, R,R,U,R, D,R,U,R)),
+            RhythmPattern("Ska Upstroke", "4/4",
+                beats(D,R,U,R, R,R,U,R, R,R,U,R, R,R,U,R))
+        )
+    ),
+    "Pop" to GenreData(
+        progressions = listOf(
+            Progression("4 Chords  (I – V – vi – IV)", listOf(
+                ChordDegree(0, ChordQuality.MAJOR, "I"),
+                ChordDegree(7, ChordQuality.MAJOR, "V"),
+                ChordDegree(9, ChordQuality.MINOR, "vi"),
+                ChordDegree(5, ChordQuality.MAJOR, "IV")
+            )),
+            Progression("Minor Start  (vi – IV – I – V)", listOf(
+                ChordDegree(9, ChordQuality.MINOR, "vi"),
+                ChordDegree(5, ChordQuality.MAJOR, "IV"),
+                ChordDegree(0, ChordQuality.MAJOR, "I"),
+                ChordDegree(7, ChordQuality.MAJOR, "V")
+            )),
+            Progression("I – IV – vi – V", listOf(
+                ChordDegree(0, ChordQuality.MAJOR, "I"),
+                ChordDegree(5, ChordQuality.MAJOR, "IV"),
+                ChordDegree(9, ChordQuality.MINOR, "vi"),
+                ChordDegree(7, ChordQuality.MAJOR, "V")
+            ))
+        ),
+        scales    = listOf("Major (Ionian)", "Natural Minor (Aeolian)", "Pentatonic Major", "Pentatonic Minor"),
+        arpeggios = listOf(
+            "Major Triad  (1 – 3 – 5)",
+            "Minor Triad  (1 – b3 – 5)",
+            "Major 7th  (1 – 3 – 5 – 7)"
+        ),
+        rhythms = listOf(
+            RhythmPattern("Pop Strum", "4/4",
+                beats(D,R,R,R, D,R,U,R, R,U,D,R, R,U,D,R)),
+            RhythmPattern("Upbeat Pop", "4/4",
+                beats(D,R,U,U, D,R,U,R, R,U,D,R, U,R,U,R)),
+            RhythmPattern("Pop Ballad", "6/8",
+                beats(D,U,U, D,U,U))
+        )
+    ),
+    "R&B" to GenreData(
+        progressions = listOf(
+            Progression("Soul  (ii7 – V7 – Imaj7)", listOf(
+                ChordDegree(2, ChordQuality.MIN7, "ii7"),
+                ChordDegree(7, ChordQuality.DOM7, "V7"),
+                ChordDegree(0, ChordQuality.MAJ7, "Imaj7")
+            )),
+            Progression("Neo-Soul  (i7 – VII – VI – V7)", listOf(
+                ChordDegree(0,  ChordQuality.MIN7, "i7"),
+                ChordDegree(10, ChordQuality.MAJOR, "VII"),
+                ChordDegree(8,  ChordQuality.MAJOR, "VI"),
+                ChordDegree(7,  ChordQuality.DOM7,  "V7")
+            )),
+            Progression("Classic Soul  (I7 – IV7 – V7)", listOf(
+                ChordDegree(0, ChordQuality.DOM7, "I7"),
+                ChordDegree(5, ChordQuality.DOM7, "IV7"),
+                ChordDegree(7, ChordQuality.DOM7, "V7")
+            ))
+        ),
+        scales    = listOf("Pentatonic Minor", "Dorian", "Natural Minor (Aeolian)", "Major (Ionian)"),
+        arpeggios = listOf(
+            "Minor 7th  (1 – b3 – 5 – b7)",
+            "Dominant 7th  (1 – 3 – 5 – b7)",
+            "Major 7th  (1 – 3 – 5 – 7)"
+        ),
+        rhythms = listOf(
+            RhythmPattern("Soul Groove", "4/4",
+                beats(D,R,X,U, D,R,X,R, D,U,X,U, D,R,X,U)),
+            RhythmPattern("Neo-Soul 16ths", "4/4",
+                beats(D,R,U,X, R,U,D,R, X,U,R,U, D,R,X,U)),
+            RhythmPattern("R&B Ballad", "6/8",
+                beats(D,R,U, D,U,R))
+        )
     )
 )
 
@@ -456,7 +601,9 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
     var selectedGenre by remember { mutableStateOf("Rock") }
     var selectedKey by remember { mutableStateOf("C") }
     var isMajor by remember { mutableStateOf(true) }
-    var selectedTab by remember { mutableStateOf(0) }
+    val pagerState = rememberPagerState(pageCount = { 4 })
+    val selectedTab = pagerState.currentPage
+    val scope = rememberCoroutineScope()
 
     val rootIndex = NOTE_NAMES.indexOf(selectedKey)
     val data = GENRE_DATA[selectedGenre]!!
@@ -532,21 +679,26 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
         }
 
         // Tabs
-        TabRow(selectedTabIndex = selectedTab) {
+        ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 0.dp) {
             listOf("Progression", "Scales", "Arpeggios", "Rhythm").forEachIndexed { index, title ->
                 Tab(
                     selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title) }
+                    onClick  = { scope.launch { pagerState.animateScrollToPage(index) } },
+                    text     = { Text(title) }
                 )
             }
         }
 
-        when (selectedTab) {
-            0 -> ProgressionsTab(data.progressions, rootIndex, isMajor)
-            1 -> ItemListTab(data.scales, selectedKey, ::scalePageUrl)
-            2 -> ItemListTab(data.arpeggios, selectedKey, ::arpeggioPageUrl)
-            3 -> RhythmTab(data.rhythms)
+        HorizontalPager(
+            state    = pagerState,
+            modifier = Modifier.weight(1f)
+        ) { page ->
+            when (page) {
+                0 -> ProgressionsTab(data.progressions, rootIndex, isMajor)
+                1 -> ItemListTab(data.scales, selectedKey, ::scalePageUrl)
+                2 -> ItemListTab(data.arpeggios, selectedKey, ::arpeggioPageUrl)
+                3 -> RhythmTab(data.rhythms)
+            }
         }
     }
 }

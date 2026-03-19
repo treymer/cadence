@@ -39,7 +39,7 @@ private val FEATURES = listOf(
     Feature(AppMode.TUNER,      "🎸", "Tuner",       "Chromatic tuner"),
     Feature(AppMode.KEY_FINDER, "🔑", "Key Finder",  "Detect your key"),
     Feature(AppMode.METRONOME,  "🥁", "Metronome",   "Keep perfect time"),
-    Feature(AppMode.SUGGESTER,  "🎵", "Ideas",       "Chords & scales"),
+    Feature(AppMode.SUGGESTER,  "🎵", "Theory",      "Chords & scales"),
     Feature(AppMode.FRETBOARD,  "🎼", "Note Finder", "Notes on the neck")
 )
 

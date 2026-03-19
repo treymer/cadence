@@ -427,7 +427,7 @@ fun CadenceNavBar(selectedMode: AppMode, onModeSelected: (AppMode) -> Unit) {
         NavItem(AppMode.TUNER,      Icons.Default.Tune,         "Tuner"),
         NavItem(AppMode.KEY_FINDER, Icons.Default.Piano,        "Keys"),
         NavItem(AppMode.METRONOME,  Icons.Default.Timer,        "Tempo"),
-        NavItem(AppMode.SUGGESTER,  Icons.Default.LibraryMusic, "Ideas"),
+        NavItem(AppMode.SUGGESTER,  Icons.Default.LibraryMusic, "Theory"),
         NavItem(AppMode.FRETBOARD,  Icons.Default.MusicNote,    "Notes"),
     )
     NavigationBar(
