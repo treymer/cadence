@@ -119,12 +119,16 @@ class MainActivity : ComponentActivity() {
     private var isBeat by mutableStateOf(false)
     private val metronomeScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var metronomeJob: Job? = null
+    private val tapTimestamps = mutableListOf<Long>()
+
+    private var pendingRecordingMode: AppMode? = null
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
-                // For simplicity, we can just let the user re-tap the button.
+                pendingRecordingMode?.let { startRecording(it) }
             }
+            pendingRecordingMode = null
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -147,7 +151,8 @@ class MainActivity : ComponentActivity() {
                     onResetKeyFinder = ::resetKeyFinder,
                     onStartMetronome = ::startMetronome,
                     onStopMetronome = ::stopMetronome,
-                    onBpmChange = { metronomeBpm = it }
+                    onBpmChange = { metronomeBpm = it },
+                    onTapTempo = ::onTapTempo
                 )
             }
         }
@@ -155,6 +160,7 @@ class MainActivity : ComponentActivity() {
 
     private fun startRecording(mode: AppMode) {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            pendingRecordingMode = mode
             requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
@@ -284,6 +290,21 @@ class MainActivity : ComponentActivity() {
         isBeat = false
     }
 
+    private fun onTapTempo() {
+        val now = System.currentTimeMillis()
+        // Reset tap sequence if more than 3 seconds since last tap
+        if (tapTimestamps.isNotEmpty() && now - tapTimestamps.last() > 3000) {
+            tapTimestamps.clear()
+        }
+        tapTimestamps.add(now)
+        if (tapTimestamps.size >= 2) {
+            val intervals = tapTimestamps.zipWithNext { a, b -> b - a }
+            val avgInterval = intervals.takeLast(8).average()
+            val bpm = (60000.0 / avgInterval).roundToInt().coerceIn(40, 240)
+            metronomeBpm = bpm
+        }
+    }
+
     private fun generateClick(sampleRate: Int): ShortArray {
         val numSamples = sampleRate * 30 / 1000  // 30ms click
         val buffer = ShortArray(numSamples)
@@ -357,7 +378,8 @@ fun MainScreen(
     onResetKeyFinder: () -> Unit,
     onStartMetronome: () -> Unit,
     onStopMetronome: () -> Unit,
-    onBpmChange: (Int) -> Unit
+    onBpmChange: (Int) -> Unit,
+    onTapTempo: () -> Unit
 ) {
     var appMode by remember { mutableStateOf(AppMode.HOME) }
 
@@ -410,7 +432,8 @@ fun MainScreen(
                     isBeat = isBeat,
                     onBpmChange = onBpmChange,
                     onStart = onStartMetronome,
-                    onStop = onStopMetronome
+                    onStop = onStopMetronome,
+                    onTapTempo = onTapTempo
                 )
                 AppMode.SUGGESTER  -> SuggesterScreen()
                 AppMode.FRETBOARD -> FretboardScreen()
@@ -452,6 +475,18 @@ fun CadenceNavBar(selectedMode: AppMode, onModeSelected: (AppMode) -> Unit) {
     }
 }
 
+private fun tempoLabel(bpm: Int): String = when {
+    bpm < 60  -> "Largo"
+    bpm < 66  -> "Larghetto"
+    bpm < 76  -> "Adagio"
+    bpm < 108 -> "Andante"
+    bpm < 120 -> "Moderato"
+    bpm < 156 -> "Allegro"
+    bpm < 176 -> "Vivace"
+    bpm < 200 -> "Presto"
+    else      -> "Prestissimo"
+}
+
 @Composable
 fun MetronomeScreen(
     bpm: Int,
@@ -460,6 +495,7 @@ fun MetronomeScreen(
     onBpmChange: (Int) -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
+    onTapTempo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val beatColor = if (isBeat) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
@@ -494,6 +530,11 @@ fun MetronomeScreen(
             fontSize = 64.sp,
             fontWeight = FontWeight.Bold
         )
+        Text(
+            text = tempoLabel(bpm),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(Modifier.height(16.dp))
 
         Slider(
@@ -510,7 +551,15 @@ fun MetronomeScreen(
             OutlinedButton(onClick = { onBpmChange((bpm + 1).coerceAtMost(240)) }) { Text("+1") }
             OutlinedButton(onClick = { onBpmChange((bpm + 10).coerceAtMost(240)) }) { Text("+10") }
         }
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(16.dp))
+
+        OutlinedButton(
+            onClick = onTapTempo,
+            modifier = Modifier.size(width = 140.dp, height = 56.dp)
+        ) {
+            Text("Tap Tempo", fontSize = 16.sp)
+        }
+        Spacer(Modifier.height(16.dp))
 
         Button(onClick = if (isRunning) onStop else onStart) {
             Text(if (isRunning) "Stop" else "Start")
@@ -832,6 +881,6 @@ fun KeyFinderScreenPreview() {
 @Composable
 fun MetronomeScreenPreview() {
     CadenceTheme {
-        MetronomeScreen(bpm = 120, isRunning = false, isBeat = false, onBpmChange = {}, onStart = {}, onStop = {})
+        MetronomeScreen(bpm = 120, isRunning = false, isBeat = false, onBpmChange = {}, onStart = {}, onStop = {}, onTapTempo = {})
     }
 }

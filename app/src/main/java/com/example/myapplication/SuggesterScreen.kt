@@ -1,7 +1,16 @@
 package com.example.myapplication
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.outlined.Bookmark
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -718,6 +727,14 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
     val rootIndex = NOTE_NAMES.indexOf(selectedKey)
     val data = GENRE_DATA[selectedGenre]!!
 
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("cadence_prefs", Context.MODE_PRIVATE) }
+    var favorites by remember { mutableStateOf(prefs.getStringSet("favorites", emptySet())!!.toSet()) }
+    fun toggleFavorite(key: String) {
+        favorites = if (key in favorites) favorites - key else favorites + key
+        prefs.edit().putStringSet("favorites", favorites).apply()
+    }
+
     // When Major: relative minor is 9 semitones up (C major → A minor)
     // When Minor: relative major is 3 semitones up (A minor → C major)
     val relativeKeyLabel = if (isMajor)
@@ -749,7 +766,8 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
         Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Key", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 FilterChip(
@@ -762,6 +780,13 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
                     onClick = { isMajor = false },
                     label = { Text("Minor") }
                 )
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = { selectedKey = NOTE_NAMES[(rootIndex - 1 + 12) % 12] }) {
+                    Icon(Icons.Filled.ChevronLeft, contentDescription = "Semitone down")
+                }
+                IconButton(onClick = { selectedKey = NOTE_NAMES[(rootIndex + 1) % 12] }) {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = "Semitone up")
+                }
             }
             Spacer(Modifier.height(4.dp))
             Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
@@ -825,7 +850,15 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
             modifier = Modifier.weight(1f)
         ) { page ->
             when (page) {
-                0 -> ProgressionsTab(data.progressions, rootIndex, isMajor)
+                0 -> ProgressionsTab(
+                    progressions = data.progressions,
+                    genre = selectedGenre,
+                    rootIndex = rootIndex,
+                    rootNote = selectedKey,
+                    isMajor = isMajor,
+                    favorites = favorites,
+                    onToggleFavorite = ::toggleFavorite
+                )
                 1 -> ItemListTab(data.scales, selectedKey, ::scalePageUrl)
                 2 -> ItemListTab(data.arpeggios, selectedKey, ::arpeggioPageUrl)
                 3 -> RhythmTab(data.rhythms)
@@ -837,7 +870,15 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ProgressionsTab(progressions: List<Progression>, rootIndex: Int, isMajor: Boolean) {
+private fun ProgressionsTab(
+    progressions: List<Progression>,
+    genre: String,
+    rootIndex: Int,
+    rootNote: String,
+    isMajor: Boolean,
+    favorites: Set<String>,
+    onToggleFavorite: (String) -> Unit
+) {
     val context = LocalContext.current
 
     Column(
@@ -847,18 +888,116 @@ private fun ProgressionsTab(progressions: List<Progression>, rootIndex: Int, isM
             .fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // Saved progressions section
+        if (favorites.isNotEmpty()) {
+            Text(
+                "Saved",
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleMedium
+            )
+            favorites.forEach { favKey ->
+                val parts = favKey.split("|")
+                if (parts.size == 4) {
+                    val favGenre = parts[0]
+                    val favProgressionName = parts[1]
+                    val favRootNote = parts[2]
+                    val favIsMajor = parts[3].toBoolean()
+                    val favRootIndex = NOTE_NAMES.indexOf(favRootNote)
+                    val favProgression = GENRE_DATA[favGenre]?.progressions?.find { it.name == favProgressionName }
+                    if (favProgression != null && favRootIndex != -1) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            favProgression.name,
+                                            fontWeight = FontWeight.SemiBold,
+                                            style = MaterialTheme.typography.titleSmall
+                                        )
+                                        Text(
+                                            "$favGenre · $favRootNote ${if (favIsMajor) "major" else "minor"}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    IconButton(onClick = { onToggleFavorite(favKey) }) {
+                                        Icon(
+                                            Icons.Filled.Bookmark,
+                                            contentDescription = "Remove from saved",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    favProgression.degrees.joinToString(" – ") { d ->
+                                        NOTE_NAMES[(favRootIndex + d.semitones) % 12] + effectiveQuality(d, favIsMajor).suffix
+                                    },
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                                    favProgression.degrees
+                                        .distinctBy { d ->
+                                            NOTE_NAMES[(favRootIndex + d.semitones) % 12] + effectiveQuality(d, favIsMajor).suffix
+                                        }
+                                        .forEach { degree ->
+                                            val note = NOTE_NAMES[(favRootIndex + degree.semitones) % 12]
+                                            val eq   = effectiveQuality(degree, favIsMajor)
+                                            val url  = chordPageUrl(note, eq)
+                                            TextButton(onClick = {
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                            }) {
+                                                Text(note + eq.suffix, fontSize = 13.sp)
+                                            }
+                                        }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            HorizontalDivider()
+        }
+
         progressions.forEach { progression ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        progression.name,
-                        fontWeight = FontWeight.SemiBold,
-                        style = MaterialTheme.typography.titleSmall
-                    )
-                    Spacer(Modifier.height(8.dp))
+                    val favKey = "$genre|${progression.name}|$rootNote|$isMajor"
+                    val isSaved = favKey in favorites
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            progression.name,
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { onToggleFavorite(favKey) }) {
+                            Icon(
+                                if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.Bookmark,
+                                contentDescription = if (isSaved) "Remove from saved" else "Save progression",
+                                tint = if (isSaved) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         progression.degrees.joinToString(" – ") { d ->
                             dynamicRoman(d.semitones, effectiveQuality(d, isMajor), isMajor)
@@ -897,6 +1036,53 @@ private fun ProgressionsTab(progressions: List<Progression>, rootIndex: Int, isM
                                     Text(name, fontSize = 13.sp)
                                 }
                             }
+                    }
+                }
+            }
+        }
+
+        // All diatonic chords in the selected key
+        val diatonicSemitones = if (isMajor)
+            listOf(0, 2, 4, 5, 7, 9, 11)
+        else
+            listOf(0, 2, 3, 5, 7, 8, 10)
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "All chords in key",
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Build your own progressions",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                    diatonicSemitones.forEach { semitones ->
+                        val quality = diatonicQuality(semitones, isMajor)
+                        val note = NOTE_NAMES[(rootIndex + semitones) % 12]
+                        val name = note + quality.suffix
+                        val roman = dynamicRoman(semitones, quality, isMajor)
+                        val url  = chordPageUrl(note, quality)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                roman,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            TextButton(onClick = {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            }) {
+                                Text(name, fontSize = 13.sp)
+                            }
+                        }
                     }
                 }
             }
