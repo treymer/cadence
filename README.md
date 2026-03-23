@@ -14,7 +14,7 @@ Detects the musical key of a song or progression. Play 3 distinct notes and the 
 A tap-tempo metronome with an adjustable BPM (40–240). A green circle flashes on each beat and a synthesized click plays through the speaker. BPM can be dialed in with a slider or ±1/±10 increment buttons.
 
 ### Theory
-Select a genre, key, and Major/Minor mode to get curated music theory content across six swipeable tabs:
+Select a genre, key, and Major/Minor mode to get curated music theory content across eight swipeable tabs:
 
 - **Progression** — chord progressions with Roman numeral analysis and links to chord diagrams
 - **Scales** — recommended scales with links to fingering diagrams
@@ -22,13 +22,15 @@ Select a genre, key, and Major/Minor mode to get curated music theory content ac
 - **Rhythm** — 5 strum patterns per genre displayed on a 16-subdivision grid with ↓/↑/✕ notation
 - **Intervals** — all 12 intervals from the selected root note with symbols, names, semitone counts, and resulting notes
 - **Extensions** — extended chord shapes (sus2, sus4, maj9, dom9, m9, dom11, dom13) with diagram links
+- **Circle** — an interactive Circle of Fifths; tap any major (outer ring) or minor (inner ring) segment to switch key
+- **CAGED** — all five CAGED positions for the selected key sorted by fret, showing the shape name, fret number, and root string
 
 Supported genres: Rock, Blues, Jazz, Funk, Metal, Country, Reggae, Pop, R&B
 
-A **Capo helper** below the key selector suggests capo positions and open-chord shapes (C, D, E, G, A) to simplify playing in any key.
+A **Capo helper** below the key selector suggests capo positions and open-chord shapes (C, D, E, G, A) to simplify playing in any key. A **relative key button** toggles between a major key and its relative minor (and vice versa).
 
 ### Note Finder
-Select any note and see every position it appears across the guitar neck, shown across two fretboard diagrams (frets 0–12 and 13–24). Inlay markers and fret numbers are included for reference.
+Select any note or swipe left/right to browse all 12 notes. Every position for the selected note is shown across two fretboard diagrams (frets 0–12 and 13–24). Inlay markers and fret numbers are included for reference.
 
 ---
 

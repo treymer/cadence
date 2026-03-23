@@ -11,9 +11,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -75,6 +77,7 @@ import kotlin.math.abs
 import kotlin.math.cos
 import androidx.core.content.ContextCompat
 import be.tarsos.dsp.AudioDispatcher
+import be.tarsos.dsp.GainProcessor
 import be.tarsos.dsp.io.android.AudioDispatcherFactory
 import be.tarsos.dsp.pitch.PitchDetectionHandler
 import be.tarsos.dsp.pitch.PitchProcessor
@@ -107,6 +110,14 @@ class MainActivity : ComponentActivity() {
     private var tunerNote by mutableStateOf("--")
     private var tunerCents by mutableStateOf(0f)
     private var isRecording by mutableStateOf(false)
+    // Tuner stability: rolling window of last 4 MIDI note detections.
+    // Display the note only when it's the majority in the window — tolerates
+    // occasional missed/wrong frames without requiring consecutive matches.
+    private val tunerNoteWindow = ArrayDeque<Int>(4)
+    private var lastConfidentPitchMs = 0L
+    // EMA smoothing for cents — reduces jitter on stable notes
+    private var smoothedCents = 0f
+    private var lastSmoothedMidiNote = -1
 
     // State for Key Finder
     private val detectedKeyNotes = mutableStateListOf<String>()
@@ -166,46 +177,90 @@ class MainActivity : ComponentActivity() {
         }
 
         isRecording = true
-        dispatcher = AudioDispatcherFactory.fromDefaultMicrophone(22050, 1024, 0)
+        // 8192-sample buffer at 22050 Hz = ~371 ms per window (~30 cycles of low E at 82 Hz).
+        // Overlap of 6144 keeps the hop size at ~93 ms so the display stays responsive.
+        dispatcher = AudioDispatcherFactory.fromDefaultMicrophone(22050, 8192, 6144)
         val pitchDetectionHandler = PitchDetectionHandler { res, _ ->
             val pitchInHz = res.pitch
-            if (pitchInHz != -1f) {
+            val confidence = res.probability
+
+            // Guitar range: low E2 (~82 Hz) to high e5 (~1175 Hz), with margin.
+            // Low strings on an unplugged electric are quiet — 0.70 still rejects
+            // broadband noise which scores far lower in the guitar frequency range.
+            val isValidPitch = pitchInHz in 70f..1300f && confidence > 0.65f
+
+            if (isValidPitch) {
                 val a4 = 440.0
                 val midiNote = (12 * (Math.log(pitchInHz.toDouble() / a4) / Math.log(2.0)) + 69).roundToInt()
                 val noteNames = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
                 val detectedNote = noteNames[midiNote % 12]
 
-                runOnUiThread {
-                    when (mode) {
-                        AppMode.TUNER -> {
-                            tunerNote = noteNames[midiNote % 12]
-                            val exactNoteFreq = a4 * Math.pow(2.0, (midiNote - 69) / 12.0)
-                            tunerCents = (1200.0 * Math.log(pitchInHz.toDouble() / exactNoteFreq) / Math.log(2.0))
-                                .toFloat().coerceIn(-50f, 50f)
-                        }
-                        AppMode.KEY_FINDER -> {
-                            val currentTime = System.currentTimeMillis()
-                            if (currentTime - lastKeyNoteDetectionTime > 2000) { // 2 second cooldown
-                                if (detectedNote.isNotEmpty() && !detectedKeyNotes.contains(detectedNote)) {
-                                    detectedKeyNotes.add(detectedNote)
-                                    lastKeyNoteDetectionTime = currentTime
+                // Vote by note CLASS (0–11), not full MIDI note.
+                // Low E fundamental (MIDI 40) and its harmonic (MIDI 52) are both
+                // note class 4 (E), so they reinforce each other instead of splitting the vote.
+                val noteClass = midiNote % 12
+                if (tunerNoteWindow.size >= 4) tunerNoteWindow.removeFirst()
+                tunerNoteWindow.addLast(noteClass)
+                lastConfidentPitchMs = System.currentTimeMillis()
+
+                val majority = tunerNoteWindow
+                    .groupingBy { it }.eachCount()
+                    .maxByOrNull { it.value }
+                val dominantNoteClass = majority?.key
+                val dominantCount = majority?.value ?: 0
+
+                if (dominantCount >= 2) {  // note must appear in at least 2 of the last 4 frames
+                    val exactNoteFreq = 440.0 * Math.pow(2.0, (midiNote - 69) / 12.0)
+                    val rawCents = (1200.0 * Math.log(pitchInHz.toDouble() / exactNoteFreq) / Math.log(2.0))
+                        .toFloat().coerceIn(-50f, 50f)
+                    // EMA: blend 50/50 when note is stable; snap immediately on note change
+                    if (dominantNoteClass == lastSmoothedMidiNote) {
+                        smoothedCents = smoothedCents * 0.5f + rawCents * 0.5f
+                    } else {
+                        smoothedCents = rawCents
+                        lastSmoothedMidiNote = dominantNoteClass!!
+                    }
+                    runOnUiThread {
+                        when (mode) {
+                            AppMode.TUNER -> {
+                                tunerNote = noteNames[((dominantNoteClass!! % 12) + 12) % 12]
+                                tunerCents = smoothedCents
+                            }
+                            AppMode.KEY_FINDER -> {
+                                val currentTime = System.currentTimeMillis()
+                                if (currentTime - lastKeyNoteDetectionTime > 2000) {
+                                    if (detectedNote.isNotEmpty() && !detectedKeyNotes.contains(detectedNote)) {
+                                        detectedKeyNotes.add(detectedNote)
+                                        lastKeyNoteDetectionTime = currentTime
+                                    }
+                                }
+                                if (detectedKeyNotes.size >= 3) {
+                                    findKeyFromNotes()
+                                    stopRecording()
                                 }
                             }
-
-                            if (detectedKeyNotes.size >= 3) {
-                                findKeyFromNotes()
-                                stopRecording()
-                            }
+                            AppMode.METRONOME  -> {}
+                            AppMode.SUGGESTER  -> {}
+                            AppMode.FRETBOARD  -> {}
+                            AppMode.HOME       -> {}
                         }
-                        AppMode.METRONOME  -> {}
-                        AppMode.SUGGESTER  -> {}
-                        AppMode.FRETBOARD  -> {}
-                        AppMode.HOME       -> {}
                     }
+                }
+            } else if (mode == AppMode.TUNER && System.currentTimeMillis() - lastConfidentPitchMs > 1500) {
+                // No confident pitch for 1.5 s — clear the display (longer hold prevents flicker
+                // between the sparse detections a quiet low string produces)
+                runOnUiThread {
+                    tunerNote = "--"
+                    tunerCents = 0f
                 }
             }
         }
-        val pitchProcessor = PitchProcessor(PitchEstimationAlgorithm.YIN, 22050f, 1024, pitchDetectionHandler)
+        // Boost quiet signals (e.g. unplugged electric) before pitch analysis.
+        // 4x gain makes low strings detectable without pushing loud signals into clipping.
+        dispatcher?.addAudioProcessor(GainProcessor(8.0))
+        // MPM (McLeod Pitch Method) is designed for musical instruments and outperforms
+        // YIN on guitar, especially for low strings with rich harmonics at low amplitude.
+        val pitchProcessor = PitchProcessor(PitchEstimationAlgorithm.MPM, 22050f, 8192, pitchDetectionHandler)
         dispatcher?.addAudioProcessor(pitchProcessor)
         dispatcher?.let { Thread(it, "Audio Dispatcher").start() }
     }
@@ -214,6 +269,10 @@ class MainActivity : ComponentActivity() {
         isRecording = false
         tunerNote = "--"
         tunerCents = 0f
+        tunerNoteWindow.clear()
+        lastConfidentPitchMs = 0L
+        smoothedCents = 0f
+        lastSmoothedMidiNote = -1
         dispatcher?.stop()
     }
 
@@ -634,6 +693,15 @@ fun TunerScreen(
             color = needleColor
         )
 
+        if (isRecording && note == "--") {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "Pluck the string a few times for best results",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
         Spacer(Modifier.height(32.dp))
 
         if (isRecording) {
@@ -645,6 +713,7 @@ fun TunerScreen(
                 Text("Start Tuning")
             }
         }
+
     }
 }
 
@@ -655,6 +724,11 @@ private fun TunerGauge(
     isActive: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val animatedCents by animateFloatAsState(
+        targetValue = if (isActive) cents else 0f,
+        animationSpec = tween(durationMillis = 80, easing = FastOutSlowInEasing),
+        label = "tunerNeedle"
+    )
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
     val greenColor = TuneGreen
     val onSurface = MaterialTheme.colorScheme.onSurfaceVariant
@@ -718,7 +792,7 @@ private fun TunerGauge(
         }
 
         // Needle
-        val needleAngleDeg = 270f + (cents / 50f) * 90f
+        val needleAngleDeg = 270f + (animatedCents / 50f) * 90f
         val needleAngleRad = Math.toRadians(needleAngleDeg.toDouble())
         val needleLength = radius - strokeWidth / 2f
         drawLine(

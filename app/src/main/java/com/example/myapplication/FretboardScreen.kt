@@ -9,16 +9,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
@@ -28,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 private val FB_NOTE_NAMES    = listOf("C","C#","D","D#","E","F","F#","G","G#","A","A#","B")
 private val FB_DISPLAY_NAMES = listOf("C","C#/Db","D","D#/Eb","E","F","F#/Gb","G","G#/Ab","A","A#/Bb","B")
@@ -40,8 +40,9 @@ private val INLAY_SINGLE = listOf(3, 5, 7, 9) // single-dot fret positions withi
 
 @Composable
 fun FretboardScreen(modifier: Modifier = Modifier) {
-    var selectedNote by remember { mutableStateOf("A") }
-    val noteIndex = FB_NOTE_NAMES.indexOf(selectedNote)
+    val pagerState = rememberPagerState(pageCount = { 12 })
+    val scope = rememberCoroutineScope()
+    val noteIndex = pagerState.currentPage
 
     Column(modifier = modifier.fillMaxSize()) {
 
@@ -55,16 +56,16 @@ fun FretboardScreen(modifier: Modifier = Modifier) {
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                "Select a note",
+                "Select a note or swipe",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(4.dp))
             Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                FB_NOTE_NAMES.forEachIndexed { i, note ->
+                FB_NOTE_NAMES.forEachIndexed { i, _ ->
                     FilterChip(
-                        selected = selectedNote == note,
-                        onClick  = { selectedNote = note },
+                        selected = noteIndex == i,
+                        onClick  = { scope.launch { pagerState.animateScrollToPage(i) } },
                         label    = { Text(FB_DISPLAY_NAMES[i]) },
                         modifier = Modifier.padding(end = 6.dp)
                     )
@@ -72,36 +73,39 @@ fun FretboardScreen(modifier: Modifier = Modifier) {
             }
         }
 
-        // ── Scrollable fretboard area ─────────────────────────────────────────
-        // weight(1f) lets this take the remaining height so verticalScroll works
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp)
-        ) {
-            Spacer(Modifier.height(20.dp))
-            Text(
-                "Frets 0 – 12",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp)
-            )
-            Spacer(Modifier.height(4.dp))
-            FretboardDiagram(noteIndex = noteIndex, firstFret = 0, lastFret = 12)
+        // ── Swipeable fretboard pages ─────────────────────────────────────────
+        HorizontalPager(
+            state    = pagerState,
+            modifier = Modifier.weight(1f)
+        ) { page ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp)
+            ) {
+                Spacer(Modifier.height(20.dp))
+                Text(
+                    "Frets 0 – 12",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+                Spacer(Modifier.height(4.dp))
+                FretboardDiagram(noteIndex = page, firstFret = 0, lastFret = 12)
 
-            Spacer(Modifier.height(24.dp))
-            Text(
-                "Frets 13 – 24  (same notes, one octave higher)",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp)
-            )
-            Spacer(Modifier.height(4.dp))
-            FretboardDiagram(noteIndex = noteIndex, firstFret = 13, lastFret = 24)
+                Spacer(Modifier.height(24.dp))
+                Text(
+                    "Frets 13 – 24  (same notes, one octave higher)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+                Spacer(Modifier.height(4.dp))
+                FretboardDiagram(noteIndex = page, firstFret = 13, lastFret = 24)
 
-            Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
+            }
         }
     }
 }

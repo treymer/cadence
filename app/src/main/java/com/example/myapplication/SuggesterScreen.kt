@@ -3,6 +3,8 @@ package com.example.myapplication
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -11,6 +13,7 @@ import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,20 +37,31 @@ import androidx.compose.material3.TextButton
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.PI
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 // ── Data model ────────────────────────────────────────────────────────────────
 
@@ -96,6 +110,25 @@ private fun relativeMajor(rootIndex: Int) = NOTE_NAMES[(rootIndex + 3) % 12] + "
 private val MAJOR_INTERVALS = listOf(0, 2, 4, 5, 7, 9, 11)
 // T S T T S T T  →  0 2 3 5 7 8 10
 private val MINOR_INTERVALS = listOf(0, 2, 3, 5, 7, 8, 10)
+
+// Circle of Fifths: 12 positions clockwise from top (C at top)
+// Major notes at each position: C G D A E B F# Db Ab Eb Bb F
+private val COF_MAJOR_NOTES   = listOf(0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5)
+// Minor notes at each position (relative minor of the major at same position)
+private val COF_MINOR_NOTES   = listOf(9, 4, 11, 6, 1, 8, 3, 10, 5, 0, 7, 2)
+// Display names for the CoF (using conventional flat spellings on the flat side)
+private val COF_MAJOR_DISPLAY = listOf("C","G","D","A","E","B","F#","Db","Ab","Eb","Bb","F")
+private val COF_MINOR_DISPLAY = listOf("Am","Em","Bm","F#m","C#m","G#m","D#m","Bbm","Fm","Cm","Gm","Dm")
+
+// CAGED shapes: name → open-chord root semitone (from C)
+private data class CagedShape(val name: String, val openRoot: Int, val rootString: String)
+private val CAGED_SHAPES = listOf(
+    CagedShape("C", 0,  "Root on 5th string"),
+    CagedShape("A", 9,  "Root on 5th string"),
+    CagedShape("G", 7,  "Root on 6th string"),
+    CagedShape("E", 4,  "Root on 6th string"),
+    CagedShape("D", 2,  "Root on 4th string"),
+)
 
 // Capo: open-chord shapes and their root semitone from C
 private val OPEN_SHAPES = listOf("C" to 0, "D" to 2, "E" to 4, "G" to 7, "A" to 9)
@@ -720,7 +753,7 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
     var selectedGenre by remember { mutableStateOf("Rock") }
     var selectedKey by remember { mutableStateOf("C") }
     var isMajor by remember { mutableStateOf(true) }
-    val pagerState = rememberPagerState(pageCount = { 6 })
+    val pagerState = rememberPagerState(pageCount = { 8 })
     val selectedTab = pagerState.currentPage
     val scope = rememberCoroutineScope()
 
@@ -806,11 +839,19 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(2.dp))
-            Text(
-                relativeKeyLabel,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
+            OutlinedButton(
+                onClick = {
+                    if (isMajor) {
+                        selectedKey = NOTE_NAMES[(rootIndex + 9) % 12]
+                        isMajor = false
+                    } else {
+                        selectedKey = NOTE_NAMES[(rootIndex + 3) % 12]
+                        isMajor = true
+                    }
+                }
+            ) {
+                Text(relativeKeyLabel, fontSize = 12.sp)
+            }
             Spacer(Modifier.height(6.dp))
             // Capo helper
             val capos = capoSuggestions(rootIndex)
@@ -836,7 +877,7 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
 
         // Tabs
         ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 0.dp) {
-            listOf("Progression", "Scales", "Arpeggios", "Rhythm", "Intervals", "Extensions").forEachIndexed { index, title ->
+            listOf("Progression", "Scales", "Arpeggios", "Rhythm", "Intervals", "Extensions", "Circle", "CAGED").forEachIndexed { index, title ->
                 Tab(
                     selected = selectedTab == index,
                     onClick  = { scope.launch { pagerState.animateScrollToPage(index) } },
@@ -864,6 +905,15 @@ fun SuggesterScreen(modifier: Modifier = Modifier) {
                 3 -> RhythmTab(data.rhythms)
                 4 -> IntervalsTab(rootIndex)
                 5 -> ExtensionsTab(selectedKey)
+                6 -> CircleOfFifthsTab(
+                    rootIndex = rootIndex,
+                    isMajor = isMajor,
+                    onKeyChange = { note, major ->
+                        selectedKey = note
+                        isMajor = major
+                    }
+                )
+                7 -> CAGEDTab(rootIndex = rootIndex, rootNote = selectedKey)
             }
         }
     }
@@ -1356,5 +1406,231 @@ private fun BeatGrid(pattern: RhythmPattern) {
                 }
             }
         }
+    }
+}
+
+// ── Circle of Fifths ──────────────────────────────────────────────────────────
+
+@Composable
+private fun CircleOfFifthsTab(
+    rootIndex: Int,
+    isMajor: Boolean,
+    onKeyChange: (note: String, isMajor: Boolean) -> Unit
+) {
+    val primary          = MaterialTheme.colorScheme.primary
+    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    val onPrimary        = MaterialTheme.colorScheme.onPrimary
+    val onPrimaryContainer = MaterialTheme.colorScheme.onPrimaryContainer
+    val surfaceVariant   = MaterialTheme.colorScheme.surfaceVariant
+    val onSurface        = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    val textMeasurer     = rememberTextMeasurer()
+
+    // Which COF position is currently highlighted
+    val majorHighlightPos = COF_MAJOR_NOTES.indexOf(if (isMajor) rootIndex else (rootIndex + 3) % 12)
+    val minorHighlightPos = COF_MINOR_NOTES.indexOf(if (isMajor) (rootIndex + 9) % 12 else rootIndex)
+
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(
+            "Circle of Fifths",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            "Tap a key to select it  ·  outer = major  ·  inner = minor",
+            style = MaterialTheme.typography.bodySmall,
+            color = onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .pointerInput(Unit) {
+                    detectTapGestures { tapOffset ->
+                        val cx = size.width / 2f
+                        val cy = size.height / 2f
+                        val dx = tapOffset.x - cx
+                        val dy = tapOffset.y - cy
+                        val r  = sqrt(dx * dx + dy * dy)
+                        val outerR = min(cx, cy) * 0.95f
+                        val midR   = outerR * 0.62f
+                        val innerR = outerR * 0.38f
+
+                        if (r in innerR..outerR) {
+                            val angle = atan2(dy.toDouble(), dx.toDouble())
+                            // Normalize to [0, 2π) starting from top, clockwise
+                            val normalized = ((angle + PI / 2.0 + PI / 12.0 + 2 * PI) % (2 * PI))
+                            val pos = (normalized / (PI / 6.0)).toInt() % 12
+
+                            if (r > midR) {
+                                // Outer ring → major key
+                                onKeyChange(NOTE_NAMES[COF_MAJOR_NOTES[pos]], true)
+                            } else {
+                                // Inner ring → minor key
+                                onKeyChange(NOTE_NAMES[COF_MINOR_NOTES[pos]], false)
+                            }
+                        }
+                    }
+                }
+        ) {
+            val cx     = size.width / 2f
+            val cy     = size.height / 2f
+            val outerR = min(cx, cy) * 0.95f
+            val midR   = outerR * 0.62f
+            val innerR = outerR * 0.38f
+
+            for (pos in 0..11) {
+                val startAngle = -105f + pos * 30f
+                val sweep      = 29f // small gap between segments
+
+                // ── Outer ring: major keys ────────────────────────────────
+                val isMajorSel = pos == majorHighlightPos
+                val majorFill  = if (isMajorSel) primary else surfaceVariant
+
+                val majorPath = Path().apply {
+                    val outerRect = Rect(cx - outerR, cy - outerR, cx + outerR, cy + outerR)
+                    val midRect   = Rect(cx - midR,   cy - midR,   cx + midR,   cy + midR)
+                    arcTo(outerRect, startAngle, sweep, forceMoveTo = true)
+                    arcTo(midRect,   startAngle + sweep, -sweep, forceMoveTo = false)
+                    close()
+                }
+                drawPath(majorPath, majorFill)
+
+                // ── Inner ring: minor keys ────────────────────────────────
+                val isMinorSel = pos == minorHighlightPos
+                val minorFill  = if (isMinorSel) primaryContainer else surfaceVariant.copy(alpha = 0.6f)
+
+                val minorPath = Path().apply {
+                    val midRect   = Rect(cx - midR,   cy - midR,   cx + midR,   cy + midR)
+                    val innerRect = Rect(cx - innerR, cy - innerR, cx + innerR, cy + innerR)
+                    arcTo(midRect,   startAngle, sweep, forceMoveTo = true)
+                    arcTo(innerRect, startAngle + sweep, -sweep, forceMoveTo = false)
+                    close()
+                }
+                drawPath(minorPath, minorFill)
+
+                // ── Text labels ───────────────────────────────────────────
+                val midAngleRad = (startAngle + sweep / 2f) * (PI / 180.0)
+
+                // Major label (outer ring)
+                val majorTextR = (outerR + midR) / 2f
+                val majorX = cx + majorTextR * cos(midAngleRad).toFloat()
+                val majorY = cy + majorTextR * sin(midAngleRad).toFloat()
+                val majorLabel = COF_MAJOR_DISPLAY[pos]
+                val majorLm = textMeasurer.measure(
+                    majorLabel,
+                    TextStyle(
+                        fontSize   = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color      = if (isMajorSel) onPrimary else onSurface
+                    )
+                )
+                drawText(majorLm, topLeft = Offset(
+                    majorX - majorLm.size.width / 2f,
+                    majorY - majorLm.size.height / 2f
+                ))
+
+                // Minor label (inner ring)
+                val minorTextR = (midR + innerR) / 2f
+                val minorX = cx + minorTextR * cos(midAngleRad).toFloat()
+                val minorY = cy + minorTextR * sin(midAngleRad).toFloat()
+                val minorLabel = COF_MINOR_DISPLAY[pos]
+                val minorLm = textMeasurer.measure(
+                    minorLabel,
+                    TextStyle(
+                        fontSize = 9.sp,
+                        color    = if (isMinorSel) onPrimaryContainer else onSurfaceVariant
+                    )
+                )
+                drawText(minorLm, topLeft = Offset(
+                    minorX - minorLm.size.width / 2f,
+                    minorY - minorLm.size.height / 2f
+                ))
+            }
+        }
+    }
+}
+
+// ── CAGED System ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun CAGEDTab(rootIndex: Int, rootNote: String) {
+    val primary      = MaterialTheme.colorScheme.primary
+    val onSurface    = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVar = MaterialTheme.colorScheme.onSurfaceVariant
+
+    // Compute fret position for each shape and sort by fret ascending
+    val positions = CAGED_SHAPES.map { shape ->
+        val fret = (rootIndex - shape.openRoot + 12) % 12
+        Pair(shape, fret)
+    }.sortedBy { (_, fret) -> fret }
+
+    Column(
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+            .fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            "CAGED System — $rootNote",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            "Five positions that cover the entire neck. Sorted by fret.",
+            style = MaterialTheme.typography.bodySmall,
+            color = onSurfaceVar
+        )
+        Spacer(Modifier.height(4.dp))
+
+        positions.forEach { (shape, fret) ->
+            Card(
+                modifier  = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    modifier            = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).fillMaxWidth(),
+                    verticalAlignment   = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Shape letter badge
+                    Text(
+                        shape.name,
+                        fontSize   = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color      = primary
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "${rootNote} — ${shape.name} shape",
+                            fontWeight = FontWeight.SemiBold,
+                            style      = MaterialTheme.typography.bodyLarge,
+                            color      = onSurface
+                        )
+                        val fretLabel = if (fret == 0) "Open position (fret 0)" else "Fret $fret"
+                        Text(
+                            fretLabel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = primary
+                        )
+                        Text(
+                            shape.rootString,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = onSurfaceVar
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Tip: Each shape connects to the next up the neck — C→A→G→E→D→C — forming a continuous loop.",
+            style = MaterialTheme.typography.bodySmall,
+            color = onSurfaceVar
+        )
     }
 }
