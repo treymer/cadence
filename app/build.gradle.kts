@@ -21,8 +21,8 @@ android {
         applicationId = "dev.treymer.cadence"
         minSdk = 24
         targetSdk = 36
-        versionCode = (System.getenv("VERSION_CODE")?.toIntOrNull()) ?: 3
-        versionName = "1.6"
+        versionCode = (System.getenv("VERSION_CODE")?.toIntOrNull()) ?: 4
+        versionName = "1.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -65,10 +65,14 @@ android {
     buildFeatures {
         compose = true
     }
+    lint {
+        baseline = file("lint-baseline.xml")
+    }
 }
 
 dependencies {
     implementation(files("libs/TarsosDSP-Android-latest.jar"))
+    implementation("com.android.billingclient:billing-ktx:7.1.1")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.lifecycle.runtime.ktx)
